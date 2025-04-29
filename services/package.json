@@ -1,0 +1,10 @@
+{
+  "name": "services",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently \"cd UserService && npm start\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.0"
+  }
+}
