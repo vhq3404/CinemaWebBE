@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const Movie = require("../models/Movie");
 const multer = require("multer");
@@ -26,13 +27,19 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Lấy chi tiết phim theo ID
 router.get("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: "ID không hợp lệ" });
+  }
+
   try {
-    const movie = await Movie.findById(req.params.id);
+    const movie = await Movie.findById(id);
     if (!movie) return res.status(404).json({ error: "Không tìm thấy phim" });
     res.json(movie);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Lỗi khi lấy phim" });
   }
 });
