@@ -6,8 +6,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const util = require("util");
-const unlinkFile = util.promisify(fs.unlink); // <- BẮT BUỘC PHẢI CÓ
-
+const unlinkFile = util.promisify(fs.unlink);
 
 // Cấu hình lưu trữ file
 const storage = multer.diskStorage({
@@ -21,28 +20,6 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-
-// API upload ảnh
-// router.post("/:id/upload-image", upload.single("image"), async (req, res) => {
-//   const theaterId = req.params.id;
-
-//   if (!req.file) {
-//     return res.status(400).json({ error: "No file uploaded" });
-//   }
-
-//   const imageUrl = `/uploads/${req.file.filename}`; // đường dẫn tương đối
-
-//   try {
-//     const result = await pool.query(
-//       `INSERT INTO theater_galleries (theater_id, image_url)
-//        VALUES ($1, $2) RETURNING *`,
-//       [theaterId, imageUrl]
-//     );
-//     res.status(201).json(result.rows[0]);
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// });
 
 // Get all theaters
 router.get("/", async (req, res) => {
@@ -66,6 +43,19 @@ router.get("/:id", async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all gallery images by theater ID
+router.get("/:id/gallery", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, image_url FROM theater_galleries WHERE theater_id = $1 ORDER BY id DESC`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Lỗi khi lấy ảnh gallery." });
   }
 });
 
@@ -115,9 +105,8 @@ router.post("/", upload.array("gallery", 10), async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-
-     // Nếu có ảnh đã được upload, xóa chúng đi (ảnh rác)
-     if (req.files && req.files.length > 0) {
+    // Nếu có ảnh đã được upload, xóa chúng đi (ảnh rác)
+    if (req.files && req.files.length > 0) {
       for (const file of req.files) {
         try {
           await unlinkFile(file.path); // xóa ảnh khỏi ổ cứng
@@ -133,15 +122,26 @@ router.post("/", upload.array("gallery", 10), async (req, res) => {
         .status(400)
         .json({ error: "Tên rạp đã tồn tại. Vui lòng chọn tên khác." });
     } else {
-      res.status(500).json({ error: 'Thêm rạp thất bại. Vui lòng thử lại.'  });
+      res.status(500).json({ error: "Thêm rạp thất bại. Vui lòng thử lại." });
     }
   }
 });
 
 // Update theater
-router.put("/:id", async (req, res) => {
-  const { name, latitude, longitude, status, address, hotline } = req.body;
+router.put("/:id", upload.array("gallery", 10), async (req, res) => {
   try {
+    const data = JSON.parse(req.body.data);
+    const {
+      name,
+      latitude,
+      longitude,
+      status,
+      address,
+      hotline,
+      deletedImages, // mảng URL ảnh cần xóa
+    } = data;
+
+    // Cập nhật thông tin rạp
     const result = await pool.query(
       `UPDATE theaters SET 
         name = $1, latitude = $2, longitude = $3, 
@@ -150,12 +150,57 @@ router.put("/:id", async (req, res) => {
        WHERE id = $7 RETURNING *`,
       [name, latitude, longitude, status, address, hotline, req.params.id]
     );
+
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "Theater not found" });
     }
+
+    const theaterId = req.params.id;
+
+    if (deletedImages && deletedImages.length > 0) {
+      for (const imageUrl of deletedImages) {
+        // Xóa ảnh khỏi cơ sở dữ liệu (bảng theater_galleries)
+        await pool.query(
+          "DELETE FROM theater_galleries WHERE theater_id = $1 AND image_url = $2",
+          [theaterId, imageUrl.replace("http://localhost:8080/theaters", "")]
+
+        );
+         console.log('imageUrl', imageUrl.replace("http://localhost:8080/theaters", ""));
+
+        // Xóa ảnh khỏi thư mục server nếu tồn tại
+        const filePath = path.join(
+          __dirname,
+          "..",
+          "uploads",
+          imageUrl.replace("http://localhost:8080/theaters", "").replace("/uploads/", "")
+        );
+
+        try {
+          // Xóa ảnh khỏi hệ thống file
+          await unlinkFile(filePath);
+          console.log(`Đã xóa ảnh: ${filePath}`);
+        } catch (err) {
+          console.error(`Không thể xóa ảnh ${filePath}:`, err);
+        }
+      }
+    }
+
+    // Thêm ảnh mới nếu có
+    if (req.files && req.files.length > 0) {
+      const insertGalleryQueries = req.files.map((file) => {
+        const imageUrl = `/uploads/${file.filename}`;
+        return pool.query(
+          `INSERT INTO theater_galleries (theater_id, image_url) VALUES ($1, $2)`,
+          [theaterId, imageUrl]
+        );
+      });
+      await Promise.all(insertGalleryQueries);
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Lỗi update rạp:", err);
+    res.status(500).json({ error: "Cập nhật rạp thất bại." });
   }
 });
 
