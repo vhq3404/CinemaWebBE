@@ -8,7 +8,9 @@ router.post("/", async (req, res) => {
   const { room_name, theater_id, room_type } = req.body;
 
   if (!room_name || !theater_id || !room_type) {
-    return res.status(400).json({ error: "Thiếu room_name, theater_id hoặc room_type" });
+    return res
+      .status(400)
+      .json({ error: "Thiếu room_name, theater_id hoặc room_type" });
   }
 
   try {
@@ -19,7 +21,9 @@ router.post("/", async (req, res) => {
     );
 
     if (existingRoom.rows.length > 0) {
-      return res.status(409).json({ error: "Tên phòng đã tồn tại trong rạp này" });
+      return res
+        .status(409)
+        .json({ error: "Tên phòng đã tồn tại trong rạp này" });
     }
 
     // Chèn phòng mới
@@ -49,10 +53,9 @@ router.put("/:roomId", async (req, res) => {
 
   try {
     // Kiểm tra phòng có tồn tại không
-    const existingRoom = await pool.query(
-      `SELECT * FROM rooms WHERE id = $1`,
-      [roomId]
-    );
+    const existingRoom = await pool.query(`SELECT * FROM rooms WHERE id = $1`, [
+      roomId,
+    ]);
 
     if (existingRoom.rows.length === 0) {
       return res.status(404).json({ error: "Phòng không tồn tại" });
@@ -77,20 +80,16 @@ router.delete("/:roomId", async (req, res) => {
 
   try {
     // Kiểm tra phòng có tồn tại không
-    const existingRoom = await pool.query(
-      `SELECT * FROM rooms WHERE id = $1`,
-      [roomId]
-    );
+    const existingRoom = await pool.query(`SELECT * FROM rooms WHERE id = $1`, [
+      roomId,
+    ]);
 
     if (existingRoom.rows.length === 0) {
       return res.status(404).json({ error: "Phòng không tồn tại" });
     }
 
     // Xóa phòng chiếu
-    await pool.query(
-      `DELETE FROM rooms WHERE id = $1`,
-      [roomId]
-    );
+    await pool.query(`DELETE FROM rooms WHERE id = $1`, [roomId]);
 
     res.status(200).json({ message: "Xóa phòng chiếu thành công" });
   } catch (error) {
@@ -99,43 +98,25 @@ router.delete("/:roomId", async (req, res) => {
   }
 });
 
-// API lấy thông tin phòng chiếu và ghế của rạp
-router.get('/theater/:theaterId', async (req, res) => {
+// API lấy danh sách các phòng theo rạp và tên của rạp
+router.get("/theater/:theaterId", async (req, res) => {
   const { theaterId } = req.params;
 
   try {
-    // Lấy thông tin các phòng chiếu của rạp với theater_id
-    const roomResult = await pool.query(
-      `SELECT id, room_name, room_type, status, created_at, updated_at
-       FROM rooms
-       WHERE theater_id = $1`,
+    // Câu lệnh SQL dùng JOIN để lấy tên rạp cùng với danh sách phòng
+    const result = await pool.query(
+      `SELECT r.id, r.room_name, r.room_type, t.name 
+       FROM rooms r
+       JOIN theaters t ON r.theater_id = t.id
+       WHERE r.theater_id = $1`,
       [theaterId]
     );
 
-    if (roomResult.rows.length === 0) {
-      return res.status(404).json({ message: "Không tìm thấy phòng chiếu cho rạp này" });
-    }
-
-    // Lấy thông tin ghế của từng phòng chiếu
-    const roomsWithSeats = [];
-    for (let room of roomResult.rows) {
-      const seatResult = await pool.query(
-        `SELECT seat_number, row_label, column_index, status
-         FROM seats
-         WHERE room_id = $1`,
-        [room.id]
-      );
-
-      roomsWithSeats.push({
-        ...room,
-        seats: seatResult.rows
-      });
-    }
-
-    res.status(200).json(roomsWithSeats);
+    // Trả về kết quả, bao gồm tên của rạp
+    res.status(200).json(result.rows);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Lỗi khi lấy thông tin phòng chiếu và ghế' });
+    console.error("Lỗi khi lấy danh sách phòng:", error.message);
+    res.status(500).json({ error: "Lỗi khi lấy danh sách phòng chiếu" });
   }
 });
 

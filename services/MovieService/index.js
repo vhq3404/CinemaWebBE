@@ -24,7 +24,7 @@ app.use(express.json());
 app.use('/movies/uploads', express.static(path.join(__dirname, 'uploads'))); // Cho phép truy cập file ảnh qua /uploads
 
 // Kết nối MongoDB
-mongoose.connect('mongodb+srv://22521195:vhq3404@cluster0.owjegkw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+mongoose.connect('mongodb+srv://22521195:vhq3404@cluster0.owjegkw.mongodb.net/movieDB?retryWrites=true&w=majority')
   .then(() => console.log('Connected to MongoDB'))
   .catch((err) => console.error('MongoDB connection error:', err));
 
