@@ -51,7 +51,7 @@ router.post("/", async (req, res) => {
     // Tính thời gian kết thúc: duration + 10 phút, rồi làm tròn
     const durationInMs = movie.duration * 60 * 1000;
     const rawEnd = new Date(start.getTime() + durationInMs);
-    rawEnd.setMinutes(rawEnd.getMinutes() + 10);
+    rawEnd.setMinutes(rawEnd.getMinutes() + 5);
     let end = roundUpToQuarterHour(rawEnd);
 
     // Giới hạn thời gian kết thúc không quá 02:00 hôm sau

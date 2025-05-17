@@ -30,5 +30,5 @@ app.use("/api/showtimes", showtimeRoutes);
 
 // Start server
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`ScheduleService server is running on port ${port}`);
 });
