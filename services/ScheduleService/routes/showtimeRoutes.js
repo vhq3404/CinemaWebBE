@@ -18,12 +18,29 @@ function roundUpToQuarterHour(date) {
 }
 
 router.post("/", async (req, res) => {
-  const { theaterId, roomId, movieId, date, startTime } = req.body;
+  const {
+    theaterId,
+    roomId,
+    movieId,
+    date,
+    startTime,
+    priceRegular,
+    priceVIP,
+  } = req.body;
 
-  if (!theaterId || !roomId || !movieId || !date || !startTime) {
+  // Kiểm tra thiếu thông tin bắt buộc
+  if (
+    !theaterId ||
+    !roomId ||
+    !movieId ||
+    !date ||
+    !startTime ||
+    priceRegular == null ||
+    priceVIP == null
+  ) {
     return res.status(400).json({
       error:
-        "Thiếu thông tin bắt buộc (theaterId, roomId, movieId, date, startTime)",
+        "Thiếu thông tin bắt buộc (theaterId, roomId, movieId, date, startTime, priceRegular, priceVIP)",
     });
   }
 
@@ -48,16 +65,15 @@ router.post("/", async (req, res) => {
     const start = new Date(date);
     start.setHours(hour, minute, 0, 0);
 
-    // Tính thời gian kết thúc: duration + 10 phút, rồi làm tròn
+    // Tính thời gian kết thúc: duration + 5 phút, rồi làm tròn
     const durationInMs = movie.duration * 60 * 1000;
-    const rawEnd = new Date(start.getTime() + durationInMs);
-    rawEnd.setMinutes(rawEnd.getMinutes() + 5);
+    const rawEnd = new Date(start.getTime() + durationInMs + 5 * 60 * 1000);
     let end = roundUpToQuarterHour(rawEnd);
 
     // Giới hạn thời gian kết thúc không quá 02:00 hôm sau
     const maxEnd = new Date(start);
-    maxEnd.setDate(maxEnd.getDate() + 1); // sang ngày hôm sau
-    maxEnd.setHours(2, 0, 0, 0); // 02:00
+    maxEnd.setDate(maxEnd.getDate() + 1);
+    maxEnd.setHours(2, 0, 0, 0);
 
     if (end > maxEnd) {
       end = new Date(maxEnd);
@@ -95,6 +111,8 @@ router.post("/", async (req, res) => {
       startTime: start,
       endTime: end,
       date: new Date(date),
+      priceRegular: priceRegular,
+      priceVIP: priceVIP,
     });
 
     await newShowtime.save();
