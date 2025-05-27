@@ -5,6 +5,16 @@
     "dev": "concurrently \"cd UserService && npm start\" \"cd MovieService && npm start\" \"cd TheaterService && npm start\" \"cd ScheduleService && npm start\""
   },
   "devDependencies": {
-    "concurrently": "^8.0.0"
+    "concurrently": "^8.0.0",
+    "nodemon": "^3.1.10"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "mongoose": "^8.15.1",
+    "pg": "^8.16.0"
   }
 }
