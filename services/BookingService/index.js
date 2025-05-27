@@ -6,10 +6,12 @@ const cors = require("cors");
 const bookingRoutes = require("./routes/bookingRoutes"); // import routes booking
 require("dotenv").config();
 
-app.use(cors({
-  origin: '*',
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 
@@ -22,8 +24,8 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "*", // bạn có thể thay * bằng domain frontend
-    methods: ["GET", "POST"]
-  }
+    methods: ["GET", "POST"],
+  },
 });
 
 // Lắng nghe sự kiện kết nối từ client

@@ -14,7 +14,7 @@ app.use(cors({
 app.use(express.json());
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // ex: postgres://user:password@localhost:5432/yourdb
+  connectionString: process.env.DATABASE_URL, 
 });
 
 // Đăng ký
