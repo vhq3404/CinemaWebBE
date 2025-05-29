@@ -13,6 +13,31 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Get all bookings by user_id
+router.get("/user/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    const bookingsResult = await pool.query(
+      `
+      SELECT 
+        b.*, 
+        json_agg(bs.seat_id) AS seat_ids
+      FROM booking b
+      LEFT JOIN booking_seats bs ON b.id = bs.booking_id
+      WHERE b.user_id = $1
+      GROUP BY b.id
+      ORDER BY b.created_at DESC
+      `,
+      [userId]
+    );
+
+    res.json(bookingsResult.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get booking by ID (kèm theo seat_ids)
 router.get("/:id", async (req, res) => {
   try {

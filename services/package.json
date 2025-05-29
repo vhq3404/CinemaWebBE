@@ -2,7 +2,7 @@
   "name": "services",
   "version": "1.0.0",
   "scripts": {
-    "dev": "concurrently \"cd UserService && npm start\" \"cd MovieService && npm start\" \"cd TheaterService && npm start\" \"cd ScheduleService && npm start\""
+    "dev": "concurrently \"cd UserService && npm start\" \"cd MovieService && npm start\" \"cd TheaterService && npm start\" \"cd ScheduleService && npm start\" \"cd BookingService && npm start\" \"cd PaymentService && npm start\""
   },
   "devDependencies": {
     "concurrently": "^8.0.0",

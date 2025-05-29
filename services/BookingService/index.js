@@ -30,12 +30,9 @@ const io = new Server(server, {
 
 // Lắng nghe sự kiện kết nối từ client
 io.on("connection", (socket) => {
-  console.log("New client connected, socket id:", socket.id);
-
   // Ví dụ: nhận thông báo ghế đã bị khóa từ client
   socket.on("lockSeats", (data) => {
     // data có thể là { showtimeId, seatIds }
-    console.log("Seats locked:", data);
 
     // Phát (broadcast) sự kiện đến tất cả client khác trừ client gửi
     socket.broadcast.emit("seatsLocked", data);

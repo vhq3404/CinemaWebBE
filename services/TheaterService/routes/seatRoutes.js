@@ -43,6 +43,24 @@ router.post("/generate", async (req, res) => {
   }
 });
 
+// GET /api/seats/:id - lấy thông tin chi tiết 1 ghế
+router.get("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(`SELECT * FROM seats WHERE id = $1`, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Không tìm thấy ghế" });
+    }
+
+    res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error("Lỗi khi lấy thông tin ghế:", error.message);
+    res.status(500).json({ error: "Không thể lấy thông tin ghế" });
+  }
+});
+
 // GET /api/seats/room/:room_id
 router.get("/room/:room_id", async (req, res) => {
   const { room_id } = req.params;
@@ -60,14 +78,18 @@ router.get("/room/:room_id", async (req, res) => {
   }
 });
 
-// PUT /api/seats/:id/type 
+// PUT /api/seats/:id/type
 router.put("/:id/type", async (req, res) => {
   const { id } = req.params;
   const { type } = req.body;
 
   // Kiểm tra đầu vào
   if (!["vip", "regular"].includes(type)) {
-    return res.status(400).json({ error: "Loại ghế không hợp lệ. Chỉ chấp nhận 'vip' hoặc 'regular'" });
+    return res
+      .status(400)
+      .json({
+        error: "Loại ghế không hợp lệ. Chỉ chấp nhận 'vip' hoặc 'regular'",
+      });
   }
 
   try {
@@ -95,7 +117,10 @@ router.put("/:id/status", async (req, res) => {
   if (status !== "inactive" && status !== "active") {
     return res
       .status(400)
-      .json({ error: "Trạng thái ghế không hợp lệ. Chỉ chấp nhận 'active' hoặc 'inactive'" });
+      .json({
+        error:
+          "Trạng thái ghế không hợp lệ. Chỉ chấp nhận 'active' hoặc 'inactive'",
+      });
   }
 
   try {
@@ -106,9 +131,14 @@ router.put("/:id/status", async (req, res) => {
     }
 
     // Cập nhật trạng thái ghế
-    await pool.query(`UPDATE seats SET status = $1 WHERE id = $2`, [status, id]);
+    await pool.query(`UPDATE seats SET status = $1 WHERE id = $2`, [
+      status,
+      id,
+    ]);
 
-    res.status(200).json({ message: `Đã cập nhật trạng thái ghế thành '${status}'` });
+    res
+      .status(200)
+      .json({ message: `Đã cập nhật trạng thái ghế thành '${status}'` });
   } catch (error) {
     console.error("Lỗi khi cập nhật trạng thái ghế:", error.message);
     res.status(500).json({ error: "Lỗi khi cập nhật trạng thái ghế" });
