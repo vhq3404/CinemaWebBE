@@ -1,39 +1,42 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const movieRoutes = require('./routes/movieRoutes');
-const fs = require('fs');
-const path = require('path');
+const express = require("express");
+const mongoose = require("mongoose");
+const movieRoutes = require("./routes/movieRoutes");
+const fs = require("fs");
+const path = require("path");
+require("dotenv").config();
 
 const app = express();
-const cors = require('cors');
-app.use(cors({
-  origin: '*',
-  credentials: true
-}));
+const cors = require("cors");
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+  })
+);
 
 const PORT = process.env.PORT || 5001;
 
 // Tạo thư mục uploads nếu chưa có
-const uploadPath = path.join(__dirname, 'uploads');
+const uploadPath = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadPath)) {
   fs.mkdirSync(uploadPath);
 }
 
 // Middleware
 app.use(express.json());
-app.use('/movies/uploads', express.static(path.join(__dirname, 'uploads'))); // Cho phép truy cập file ảnh qua /uploads
+app.use("/movies/uploads", express.static(path.join(__dirname, "uploads"))); // Cho phép truy cập file ảnh qua /uploads
 
 // Kết nối MongoDB
-mongoose.connect('mongodb+srv://22521195:vhq3404@cluster0.owjegkw.mongodb.net/movieDB?retryWrites=true&w=majority')
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('MongoDB connection error:', err));
-
+mongoose
+  .connect(process.env.MONGODB_URI)
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((err) => console.error("MongoDB connection error:", err));
 // Routes
-app.use('/api/movies', movieRoutes);
+app.use("/api/movies", movieRoutes);
 
 // Test route
-app.get('/', (req, res) => {
-  res.send('MovieService is running!');
+app.get("/", (req, res) => {
+  res.send("MovieService is running!");
 });
 
 app.listen(PORT, () => {

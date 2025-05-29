@@ -3,6 +3,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const showtimeRoutes = require("./routes/showtimeRoutes");
+require("dotenv").config();
 
 const app = express();
 const cors = require("cors");
@@ -19,9 +20,7 @@ app.use(bodyParser.json());
 
 // Kết nối MongoDB
 mongoose
-  .connect(
-    "mongodb+srv://22521195:vhq3404@cluster0.owjegkw.mongodb.net/scheduleDB?retryWrites=true&w=majority"
-  )
+  .connect(process.env.MONGODB_URI)
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
