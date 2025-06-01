@@ -1,6 +1,7 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const PayOS = require("@payos/node");
+const { poolUsers, poolBookings } = require("../db");
 
 dotenv.config();
 const router = express.Router();
@@ -22,9 +23,7 @@ router.post("/payos", async (req, res) => {
   const returnUrl = `${
     process.env.RETURN_URL || "http://localhost:3000"
   }/payment-success`;
-  const cancelUrl = `${
-    process.env.RETURN_URL || "http://localhost:3000"
-  }/`;
+  const cancelUrl = `${process.env.RETURN_URL || "http://localhost:3000"}/`;
 
   const body = {
     orderCode: Number(String(Date.now()).slice(-6)),
@@ -44,6 +43,59 @@ router.post("/payos", async (req, res) => {
     res.status(500).json({ error: "Không thể tạo link thanh toán" });
   }
 });
+
+router.post("/success", async (req, res) => {
+  const { bookingId, userId, usedPoints = 0 } = req.body;
+
+  if (!bookingId || !userId) {
+    return res
+      .status(400)
+      .json({ error: "Thiếu thông tin xác nhận thanh toán" });
+  }
+
+  try {
+    // 1. Lấy số tiền đã thanh toán từ booking
+    const bookingResult = await poolBookings.query(
+      `SELECT total_price FROM booking WHERE id = $1`,
+      [bookingId]
+    );
+
+    if (bookingResult.rowCount === 0) {
+      return res.status(404).json({ error: "Booking không tồn tại" });
+    }
+
+    const amount = bookingResult.rows[0].total_price;
+
+    if (!amount) {
+      return res.status(400).json({ error: "Chưa có số tiền thanh toán" });
+    }
+
+    // 2. Cập nhật trạng thái booking thành PAID
+    await poolBookings.query(
+      `UPDATE booking SET status = 'PAID' WHERE id = $1`,
+      [bookingId]
+    );
+
+    // 3. Tính điểm thưởng (5% trên số tiền thực trả)
+    const earnedPoints = Math.round((amount/1000) * 0.05);
+
+    // 4. Cập nhật điểm user
+    await poolUsers.query(
+      `UPDATE users SET points = points + $1 - $2 WHERE id = $3`,
+      [earnedPoints, usedPoints, userId]
+    );
+
+    res.status(200).json({
+      message: "Thanh toán và cập nhật điểm thành công",
+      earnedPoints,
+    });
+  } catch (error) {
+    console.error("Lỗi khi xác nhận thanh toán:", error);
+    res.status(500).json({ error: "Lỗi máy chủ khi cập nhật thanh toán" });
+  }
+});
+
+module.exports = router;
 
 // // 1. Route tạo QR code (chỉ tạo QR, không lưu DB)
 // router.post("/qr", async (req, res) => {
@@ -135,5 +187,3 @@ router.post("/payos", async (req, res) => {
 //     res.status(500).json({ status: "ERR", message: "Internal Server Error" });
 //   }
 // });
-
-module.exports = router;
