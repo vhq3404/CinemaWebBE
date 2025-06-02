@@ -44,7 +44,7 @@ io.on("connection", (socket) => {
 });
 
 // Lắng nghe server trên PORT
-const PORT = process.env.PORT || 5004;
+const PORT = process.env.PORT || 5006;
 server.listen(PORT, () => {
   console.log(`BookingService server running on port ${PORT}`);
 });
