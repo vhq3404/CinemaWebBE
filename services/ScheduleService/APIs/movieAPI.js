@@ -1,9 +1,12 @@
 const axios = require("axios");
+require("dotenv").config();
 const MOVIE_SERVICE_BASE_URL = process.env.MOVIE_SERVICE_BASE_URL;
 
 // Hàm gọi API từ MovieService để lấy thông tin phim
 async function fetchMovieById(movieId) {
   try {
+    console.log("MOVIE_SERVICE_BASE_URL:", MOVIE_SERVICE_BASE_URL);
+
     const response = await axios.get(`${MOVIE_SERVICE_BASE_URL}/${movieId}`, {
       timeout: 3000, // timeout 3s
     });

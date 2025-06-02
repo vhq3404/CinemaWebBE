@@ -26,6 +26,7 @@ router.post("/", async (req, res) => {
     startTime,
     priceRegular,
     priceVIP,
+    showtimeType,
   } = req.body;
 
   // Kiểm tra thiếu thông tin bắt buộc
@@ -36,7 +37,8 @@ router.post("/", async (req, res) => {
     !date ||
     !startTime ||
     priceRegular == null ||
-    priceVIP == null
+    priceVIP == null ||
+    !showtimeType
   ) {
     return res.status(400).json({
       error:
@@ -113,6 +115,7 @@ router.post("/", async (req, res) => {
       date: new Date(date),
       priceRegular: priceRegular,
       priceVIP: priceVIP,
+      showtimeType: showtimeType,
     });
 
     await newShowtime.save();

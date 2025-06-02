@@ -8,7 +8,7 @@ const showtimeSchema = new mongoose.Schema(
         required: true,
       },
       title: {
-        type: String, // Tên phim
+        type: String,
         required: true,
       },
       duration: {
@@ -54,6 +54,10 @@ const showtimeSchema = new mongoose.Schema(
     },
     priceVIP: {
       type: Number,
+      required: true,
+    },
+    showtimeType: {
+      type: String,
       required: true,
     },
   },
