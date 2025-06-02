@@ -1,5 +1,6 @@
 //theaterAPI
 const axios = require("axios");
+require("dotenv").config();
 
 const THEATER_SERVICE_BASE_URL = process.env.THEATER_SERVICE_BASE_URL;
 
