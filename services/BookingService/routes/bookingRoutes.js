@@ -121,7 +121,7 @@ router.post("/", async (req, res) => {
       ...new Set([...currentLockedSeats, ...seat_ids]),
     ];
 
-    await redisClient.setEx(cacheKey, 60, JSON.stringify(updatedLockedSeats));
+    await redisClient.setEx(cacheKey, 600, JSON.stringify(updatedLockedSeats));
 
     res.status(201).json({ message: "Booking created", booking_id: bookingId });
   } catch (err) {

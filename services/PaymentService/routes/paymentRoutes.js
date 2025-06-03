@@ -45,7 +45,7 @@ router.post("/payos", async (req, res) => {
 });
 
 router.post("/success", async (req, res) => {
-  const { bookingId, userId, usedPoints = 0 } = req.body;
+  const { bookingId, userId, usedPoints = 0, foodBookingId } = req.body;
 
   if (!bookingId || !userId) {
     return res
@@ -64,22 +64,38 @@ router.post("/success", async (req, res) => {
       return res.status(404).json({ error: "Booking không tồn tại" });
     }
 
-    const amount = bookingResult.rows[0].total_price;
+    let amount = Number(bookingResult.rows[0].total_price) || 0;
 
-    if (!amount) {
-      return res.status(400).json({ error: "Chưa có số tiền thanh toán" });
+    if (foodBookingId) {
+      const foodResult = await poolBookings.query(
+        `SELECT total_price FROM food_booking WHERE id = $1`,
+        [foodBookingId]
+      );
+
+      if (foodResult.rowCount === 0) {
+        return res.status(404).json({ error: "Food booking không tồn tại" });
+      }
+
+      const foodPrice = Number(foodResult.rows[0].total_price) || 0;
+
+      amount += foodPrice;
+
+      await poolBookings.query(
+        `UPDATE food_booking SET status = 'PAID' WHERE id = $1`,
+        [foodBookingId]
+      );
     }
 
-    // 2. Cập nhật trạng thái booking thành PAID
+    // 3. Cập nhật trạng thái booking thành PAID
     await poolBookings.query(
       `UPDATE booking SET status = 'PAID' WHERE id = $1`,
       [bookingId]
     );
 
-    // 3. Tính điểm thưởng (5% trên số tiền thực trả)
-    const earnedPoints = Math.round((amount/1000) * 0.05);
+    // 4. Tính điểm thưởng (5% trên số tiền thực trả)
+    const earnedPoints = Math.round((amount / 1000) * 0.05) || 0;
 
-    // 4. Cập nhật điểm user
+    // 5. Cập nhật điểm user
     await poolUsers.query(
       `UPDATE users SET points = points + $1 - $2 WHERE id = $3`,
       [earnedPoints, usedPoints, userId]
@@ -88,6 +104,7 @@ router.post("/success", async (req, res) => {
     res.status(200).json({
       message: "Thanh toán và cập nhật điểm thành công",
       earnedPoints,
+      totalPaid: amount,
     });
   } catch (error) {
     console.error("Lỗi khi xác nhận thanh toán:", error);

@@ -3,7 +3,8 @@ const http = require("http"); // thêm
 const { Server } = require("socket.io"); // thêm
 const app = express();
 const cors = require("cors");
-const bookingRoutes = require("./routes/bookingRoutes"); // import routes booking
+const bookingRoutes = require("./routes/bookingRoutes");
+const foodBookingRoutes = require("./routes/foodBookingRoutes");
 require("dotenv").config();
 
 app.use(
@@ -16,6 +17,7 @@ app.use(
 app.use(express.json());
 
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/food-bookings", foodBookingRoutes);
 
 // Tạo server HTTP từ app Express
 const server = http.createServer(app);
