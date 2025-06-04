@@ -97,7 +97,7 @@ app.post("/api/login", async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, role: user.role }, // Thêm thông tin role vào payload
       process.env.JWT_SECRET || "secret",
-      { expiresIn: "1h" }
+      { expiresIn: "24h" }
     );
     res.json({
       message: "Login successfully",

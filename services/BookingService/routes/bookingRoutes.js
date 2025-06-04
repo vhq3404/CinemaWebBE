@@ -67,7 +67,7 @@ router.get("/:id", async (req, res) => {
 
 // Create new booking
 router.post("/", async (req, res) => {
-  const { user_id, showtime_id, room_id, seat_ids, total_price } = req.body;
+  const { user_id, showtime_id, room_id, seat_ids, total_price, movie_id } = req.body;
 
   if (
     !user_id ||
@@ -76,7 +76,8 @@ router.post("/", async (req, res) => {
     !seat_ids ||
     !Array.isArray(seat_ids) ||
     seat_ids.length === 0 ||
-    !total_price
+    !total_price ||
+    !movie_id 
   ) {
     return res
       .status(400)
@@ -89,13 +90,14 @@ router.post("/", async (req, res) => {
     await client.query("BEGIN");
 
     const insertBookingText = `
-      INSERT INTO booking (user_id, showtime_id, room_id, total_price, status)
-      VALUES ($1, $2, $3, $4, 'PENDING') RETURNING id
+      INSERT INTO booking (user_id, showtime_id, room_id, movie_id, total_price, status)
+      VALUES ($1, $2, $3, $4, $5, 'PENDING') RETURNING id
     `;
     const bookingResult = await client.query(insertBookingText, [
       user_id,
       showtime_id,
       room_id,
+      movie_id,
       total_price,
     ]);
     const bookingId = bookingResult.rows[0].id;

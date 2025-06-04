@@ -2,6 +2,17 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 
+// Get all food-bookings
+router.get("/", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM food_booking ORDER BY id DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // Tạo mới hóa đơn đặt món ăn
 router.post("/", async (req, res) => {
   const { user_id, items } = req.body;
@@ -149,6 +160,27 @@ router.get("/user/:userId", async (req, res) => {
     );
 
     res.json({ food_bookings: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Lấy tất cả food_booking_items theo food_booking_id
+router.get("/:id/items", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM food_booking_items
+      WHERE food_booking_id = $1
+      ORDER BY id ASC
+      `,
+      [id]
+    );
+
+    res.json({ items: result.rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
