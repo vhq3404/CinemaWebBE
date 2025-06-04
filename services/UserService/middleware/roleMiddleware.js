@@ -1,9 +1,24 @@
 // middleware/roleMiddleware.js
-const checkAdmin = (req, res, next) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Forbidden' }); // Chỉ admin mới được truy cập
-  }
-  next(); // Tiến hành gọi middleware tiếp theo hoặc route handler
+
+// Kiểm tra xem role hiện tại có nằm trong danh sách cho phép không
+const checkRole = (...allowedRoles) => {
+  return (req, res, next) => {
+    const userRole = req.user?.role;
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      return res.status(403).json({ error: "Forbidden: Không có quyền truy cập!" });
+    }
+    next();
+  };
 };
 
-module.exports = checkAdmin;
+// Shortcut: chỉ cho admin
+const checkAdmin = checkRole("admin");
+
+// Shortcut: cho admin hoặc employee
+const checkAdminOrEmployee = checkRole("admin", "employee");
+
+module.exports = {
+  checkRole,
+  checkAdmin,
+  checkAdminOrEmployee,
+};

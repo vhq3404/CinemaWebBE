@@ -1,9 +1,13 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const checkAuth = require("./middleware/authMiddleware");
+const { checkAdminOrEmployee } = require("./middleware/roleMiddleware");
 const { Pool } = require("pg");
-require("dotenv").config();
+const nodemailer = require("nodemailer");
 
+require("dotenv").config();
+const otpStore = new Map();
 const app = express();
 const cors = require("cors");
 app.use(
@@ -18,7 +22,32 @@ app.use(express.json());
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
+// Tạo transporter dùng SMTP Gmail (thay bằng thông tin email và pass của bạn)
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER, // email gửi đi
+    pass: process.env.EMAIL_PASS, // mật khẩu app password hoặc mật khẩu email
+  },
+});
 
+// Hàm gửi mail
+async function sendEmail(to, subject, text) {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    text,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log("Email sent to:", to);
+  } catch (error) {
+    console.error("Error sending email:", error);
+    throw error;
+  }
+}
 // Đăng ký
 app.post("/api/signup", async (req, res) => {
   const { name, email, phone, gender, birthdate, password, role } = req.body;
@@ -106,6 +135,190 @@ app.get("/api/users/:id", async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ error: "Lỗi server: " + error.message });
+  }
+});
+
+// Cập nhật thông tin user
+app.put("/api/users/:id", checkAuth, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { name, email, phone, gender, birthdate } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE users 
+       SET name = $1, email = $2, phone = $3, gender = $4, birthdate = $5 
+       WHERE id = $6 
+       RETURNING id, name, email, phone, gender, birthdate, role, points, rank`,
+      [name, email, phone, gender, birthdate, userId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Người dùng không tồn tại." });
+    }
+
+    res.json({
+      message: "Cập nhật thông tin người dùng thành công.",
+      user: result.rows[0],
+    });
+  } catch (error) {
+    if (error.code === "23505") {
+      if (error.detail.includes("email")) {
+        return res.status(400).json({ error: "Email đã được sử dụng." });
+      } else if (error.detail.includes("phone")) {
+        return res
+          .status(400)
+          .json({ error: "Số điện thoại đã được sử dụng." });
+      }
+    }
+    res.status(500).json({ error: "Lỗi khi cập nhật: " + error.message });
+  }
+});
+
+// Đổi mật khẩu
+app.put("/api/users/:id/change-password", checkAuth, async (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { oldPassword, newPassword } = req.body;
+
+  // Kiểm tra userId trong token có quyền thay đổi mật khẩu user này
+  // (bạn có thể bổ sung check role nếu cần)
+  if (req.user.userId !== userId) {
+    return res
+      .status(403)
+      .json({ error: "Bạn không có quyền thay đổi mật khẩu này." });
+  }
+
+  try {
+    // Lấy user trong DB
+    const result = await pool.query(
+      "SELECT password FROM users WHERE id = $1",
+      [userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Người dùng không tồn tại." });
+    }
+
+    const user = result.rows[0];
+
+    // So sánh mật khẩu cũ
+    const match = await bcrypt.compare(oldPassword, user.password);
+    if (!match) {
+      return res.status(400).json({ error: "Mật khẩu cũ không đúng." });
+    }
+
+    // Mã hóa mật khẩu mới
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // Cập nhật mật khẩu mới vào DB
+    await pool.query("UPDATE users SET password = $1 WHERE id = $2", [
+      hashedNewPassword,
+      userId,
+    ]);
+
+    res.json({ message: "Đổi mật khẩu thành công." });
+  } catch (error) {
+    res.status(500).json({ error: "Lỗi server: " + error.message });
+  }
+});
+
+app.post("/api/forgot-password/send-otp", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email là bắt buộc." });
+
+  try {
+    const userResult = await pool.query(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    );
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "Email không tồn tại." });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore.set(email, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
+
+    // Gửi mail OTP thật
+    const subject = "Mã OTP đặt lại mật khẩu của bạn";
+    const text = `Mã OTP của bạn là: ${otp}. Mã có hiệu lực trong 5 phút. Nếu bạn không yêu cầu, vui lòng bỏ qua email này.`;
+
+    await sendEmail(email, subject, text);
+
+    res.json({ message: "OTP đã được gửi đến email." });
+  } catch (error) {
+    res.status(500).json({ error: "Lỗi server khi gửi OTP: " + error.message });
+  }
+});
+// Xác thực OTP (kiểm tra mã OTP gửi đến email)
+app.post("/api/forgot-password/verify-otp", (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp)
+    return res.status(400).json({ error: "Email và OTP là bắt buộc." });
+
+  const record = otpStore.get(email);
+  if (!record)
+    return res.status(400).json({ error: "OTP không hợp lệ hoặc đã hết hạn." });
+
+  if (record.expiresAt < Date.now()) {
+    otpStore.delete(email);
+    return res.status(400).json({ error: "OTP đã hết hạn." });
+  }
+
+  if (record.otp !== otp) {
+    return res.status(400).json({ error: "OTP không chính xác." });
+  }
+
+  // Xác thực thành công, có thể cho phép đổi mật khẩu
+  res.json({ message: "Xác thực OTP thành công." });
+});
+
+// Đặt lại mật khẩu mới
+app.post("/api/forgot-password/reset-password", async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) {
+    return res
+      .status(400)
+      .json({ error: "Email, OTP và mật khẩu mới là bắt buộc." });
+  }
+
+  const record = otpStore.get(email);
+  if (!record)
+    return res.status(400).json({ error: "OTP không hợp lệ hoặc đã hết hạn." });
+
+  if (record.expiresAt < Date.now()) {
+    otpStore.delete(email);
+    return res.status(400).json({ error: "OTP đã hết hạn." });
+  }
+
+  if (record.otp !== otp) {
+    return res.status(400).json({ error: "OTP không chính xác." });
+  }
+
+  try {
+    // Kiểm tra user có tồn tại
+    const userResult = await pool.query(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    );
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "Email không tồn tại." });
+    }
+
+    // Mã hóa mật khẩu mới
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Cập nhật mật khẩu mới vào DB
+    await pool.query("UPDATE users SET password = $1 WHERE email = $2", [
+      hashedPassword,
+      email,
+    ]);
+
+    // Xóa OTP khỏi store
+    otpStore.delete(email);
+
+    res.json({ message: "Đặt lại mật khẩu thành công." });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Lỗi server khi cập nhật mật khẩu: " + error.message });
   }
 });
 
