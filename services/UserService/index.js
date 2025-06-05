@@ -2,7 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const checkAuth = require("./middleware/authMiddleware");
-const { checkAdminOrEmployee } = require("./middleware/roleMiddleware");
+const { checkAdmin } = require("./middleware/roleMiddleware");
 const { Pool } = require("pg");
 const nodemailer = require("nodemailer");
 
@@ -319,6 +319,150 @@ app.post("/api/forgot-password/reset-password", async (req, res) => {
     res
       .status(500)
       .json({ error: "Lỗi server khi cập nhật mật khẩu: " + error.message });
+  }
+});
+
+app.post("/api/employees", checkAuth, checkAdmin, async (req, res) => {
+  const {
+    name,
+    email,
+    phone,
+    gender,
+    birthdate,
+    password,
+    role,
+    identity_card,
+    workplace,
+  } = req.body;
+
+  if (role !== "employee") {
+    return res
+      .status(400)
+      .json({ error: "Chỉ được tạo tài khoản với role là employee" });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      `INSERT INTO users (name, email, phone, gender, birthdate, password, role, identity_card, workplace)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id, name, email, phone, gender, birthdate, role, identity_card, workplace`,
+      [
+        name,
+        email,
+        phone,
+        gender,
+        birthdate,
+        hashedPassword,
+        role,
+        identity_card,
+        workplace,
+      ]
+    );
+
+    res
+      .status(201)
+      .json({ message: "Tạo nhân viên thành công", employee: result.rows[0] });
+  } catch (error) {
+    if (error.code === "23505") {
+      if (error.detail.includes("email")) {
+        return res.status(400).json({ error: "Email đã được sử dụng." });
+      } else if (error.detail.includes("phone")) {
+        return res
+          .status(400)
+          .json({ error: "Số điện thoại đã được sử dụng." });
+      }
+    }
+    res
+      .status(500)
+      .json({ error: "Lỗi server khi tạo nhân viên: " + error.message });
+  }
+});
+
+app.put("/api/employees/:id", checkAuth, checkAdmin, async (req, res) => {
+  const employeeId = parseInt(req.params.id);
+  const { name, email, phone, gender, birthdate, identity_card, workplace } =
+    req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE users SET name=$1, email=$2, phone=$3, gender=$4, birthdate=$5, identity_card=$6, workplace=$7
+       WHERE id=$8 AND role='employee'
+       RETURNING id, name, email, phone, gender, birthdate, role, identity_card, workplace`,
+      [
+        name,
+        email,
+        phone,
+        gender,
+        birthdate,
+        identity_card,
+        workplace,
+        employeeId,
+      ]
+    );
+
+    if (result.rowCount === 0) {
+      return res
+        .status(404)
+        .json({ error: "Nhân viên không tồn tại hoặc không phải nhân viên" });
+    }
+
+    res.json({
+      message: "Cập nhật nhân viên thành công",
+      employee: result.rows[0],
+    });
+  } catch (error) {
+    if (error.code === "23505") {
+      if (error.detail.includes("email")) {
+        return res.status(400).json({ error: "Email đã được sử dụng." });
+      } else if (error.detail.includes("phone")) {
+        return res
+          .status(400)
+          .json({ error: "Số điện thoại đã được sử dụng." });
+      }
+    }
+    res
+      .status(500)
+      .json({ error: "Lỗi server khi cập nhật nhân viên: " + error.message });
+  }
+});
+
+app.delete("/api/employees/:id", checkAuth, checkAdmin, async (req, res) => {
+  const employeeId = parseInt(req.params.id);
+
+  try {
+    const result = await pool.query(
+      "DELETE FROM users WHERE id = $1 AND role = 'employee'",
+      [employeeId]
+    );
+
+    if (result.rowCount === 0) {
+      return res
+        .status(404)
+        .json({ error: "Nhân viên không tồn tại hoặc không phải nhân viên" });
+    }
+
+    res.json({ message: "Xóa nhân viên thành công" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Lỗi server khi xóa nhân viên: " + error.message });
+  }
+});
+
+// Lấy danh sách nhân viên (users có role = 'employee')
+app.get("/api/employees", checkAuth, checkAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, name, email, phone, gender, birthdate, role, identity_card, workplace FROM users WHERE role = 'employee' ORDER BY id"
+    );
+    res.json({ employees: result.rows });
+  } catch (error) {
+    res
+      .status(500)
+      .json({
+        error: "Lỗi server khi lấy danh sách nhân viên: " + error.message,
+      });
   }
 });
 
