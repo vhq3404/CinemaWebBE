@@ -2,7 +2,59 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const redisClient = require("../redisClient");
+const { getIO } = require("../socket");
 
+// Lấy tất cả refund_booking
+router.get("/refund-bookings", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM refund_booking ORDER BY id DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Lấy refund_booking theo id
+router.get("/refund-bookings/:id", async (req, res) => {
+  try {
+    const refundId = req.params.id;
+    const result = await pool.query(
+      "SELECT * FROM refund_booking WHERE id = $1",
+      [refundId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Refund record not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Lấy refund_booking theo booking_id
+router.get("/refund-bookings/booking/:bookingId", async (req, res) => {
+  try {
+    const bookingId = req.params.bookingId;
+    const result = await pool.query(
+      "SELECT * FROM refund_booking WHERE booking_id = $1",
+      [bookingId]
+    );
+
+    if (result.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Refund record not found for this booking" });
+    }
+
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // Get all bookings
 router.get("/", async (req, res) => {
   try {
@@ -67,7 +119,8 @@ router.get("/:id", async (req, res) => {
 
 // Create new booking
 router.post("/", async (req, res) => {
-  const { user_id, showtime_id, room_id, seat_ids, total_price, movie_id } = req.body;
+  const { user_id, showtime_id, room_id, seat_ids, total_price, movie_id } =
+    req.body;
 
   if (
     !user_id ||
@@ -77,7 +130,7 @@ router.post("/", async (req, res) => {
     !Array.isArray(seat_ids) ||
     seat_ids.length === 0 ||
     !total_price ||
-    !movie_id 
+    !movie_id
   ) {
     return res
       .status(400)
@@ -161,11 +214,10 @@ router.put("/:id/total_price", async (req, res) => {
   }
 });
 
-
-// Update booking status (e.g. change status to PAID or CANCELLED)
+// Update booking status
 router.put("/:id/status", async (req, res) => {
   const { status } = req.body;
-  const validStatuses = ["PENDING", "PAID", "CANCELLED"];
+  const validStatuses = ["PENDING", "PAID", "CANCELLED", "REFUND_REQUESTED"];
 
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ error: "Invalid status value" });
@@ -280,7 +332,7 @@ router.get("/locked-seats/:showtimeId", async (req, res) => {
       SELECT bs.seat_id
       FROM booking b
       JOIN booking_seats bs ON b.id = bs.booking_id
-      WHERE b.showtime_id = $1 AND b.status IN ('PENDING', 'PAID')
+      WHERE b.showtime_id = $1 AND b.status IN ('PENDING', 'PAID', 'REFUND_REQUESTED')
       `,
       [showtimeId]
     );
@@ -293,6 +345,139 @@ router.get("/locked-seats/:showtimeId", async (req, res) => {
     res.json({ locked_seat_ids: lockedSeatIds });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Gửi yêu cầu hoàn tiền (refund)
+router.post("/:id/refund-request", async (req, res) => {
+  const bookingId = req.params.id;
+  const {
+    amount,
+    method,
+    phone,
+    bank_account_name,
+    bank_name,
+    bank_account_number,
+    momo_account_name,
+  } = req.body;
+
+  if (
+    amount === undefined ||
+    amount === null ||
+    method === undefined ||
+    method === null ||
+    (method === "momo" && (!phone || !momo_account_name)) ||
+    (method === "bank" &&
+      (!bank_account_name || !bank_name || !bank_account_number))
+  ) {
+    return res
+      .status(400)
+      .json({ error: "Missing required refund information" });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // 1. Cập nhật trạng thái booking thành REFUND_REQUESTED
+    const updateResult = await client.query(
+      `UPDATE booking 
+       SET status = 'REFUND_REQUESTED', updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $1 
+       RETURNING *`,
+      [bookingId]
+    );
+
+    if (updateResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // 2. Tạo bản ghi refund_booking
+    await client.query(
+      `INSERT INTO refund_booking (
+    booking_id, amount, method, phone, momo_account_name, bank_account_name, bank_name, bank_account_number
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        bookingId,
+        amount,
+        method,
+        method === "momo" ? phone : null,
+        method === "momo" ? momo_account_name : null,
+        method === "bank" ? bank_account_name : null,
+        method === "bank" ? bank_name : null,
+        method === "bank" ? bank_account_number : null,
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    const io = getIO();
+    io.emit("booking_refund_requested", {
+      bookingId,
+      amount,
+      method,
+      phone,
+      momo_account_name,
+      bank_account_name,
+      bank_name,
+      bank_account_number,
+    });
+
+    res.status(200).json({ message: "Refund request submitted successfully" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ error: "Failed to submit refund request" });
+  } finally {
+    client.release();
+  }
+});
+
+// Hủy yêu cầu hoàn tiền (chuyển về PAID và xóa bản ghi refund_booking)
+router.delete("/:id/refund-cancel", async (req, res) => {
+  const bookingId = req.params.id;
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // 1. Kiểm tra booking tồn tại và đang ở trạng thái REFUND_REQUESTED
+    const bookingResult = await client.query(
+      "SELECT * FROM booking WHERE id = $1 AND status = 'REFUND_REQUESTED'",
+      [bookingId]
+    );
+
+    if (bookingResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "No refund request to cancel" });
+    }
+
+    // 2. Cập nhật trạng thái booking về PAID
+    await client.query(
+      "UPDATE booking SET status = 'PAID', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+      [bookingId]
+    );
+
+    // 3. Xoá bản ghi refund_booking tương ứng
+    await client.query("DELETE FROM refund_booking WHERE booking_id = $1", [
+      bookingId,
+    ]);
+
+    await client.query("COMMIT");
+    const io = getIO();
+    io.emit("booking_refund_cancelled", {
+      bookingId,
+    });
+    res.json({
+      message: "Refund request canceled and booking status set to PAID",
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 

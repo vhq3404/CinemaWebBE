@@ -118,6 +118,24 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+// Lấy tất cả user với role là "user"
+app.get("/api/users", checkAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, email, phone, gender, birthdate, role, points, rank
+       FROM users
+       WHERE role = 'user'
+       ORDER BY id ASC`
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Lỗi server khi lấy danh sách user: " + error.message });
+  }
+});
+
 // Lấy thông tin user theo id
 app.get("/api/users/:id", async (req, res) => {
   const userId = req.params.id;
@@ -458,11 +476,9 @@ app.get("/api/employees", checkAuth, checkAdmin, async (req, res) => {
     );
     res.json({ employees: result.rows });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        error: "Lỗi server khi lấy danh sách nhân viên: " + error.message,
-      });
+    res.status(500).json({
+      error: "Lỗi server khi lấy danh sách nhân viên: " + error.message,
+    });
   }
 });
 
