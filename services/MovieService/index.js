@@ -24,7 +24,7 @@ if (!fs.existsSync(uploadPath)) {
 
 // Middleware
 app.use(express.json());
-app.use("/movies/uploads", express.static(path.join(__dirname, "uploads"))); // Cho phép truy cập file ảnh qua /uploads
+app.use("/movies/uploads", express.static(path.join(__dirname, "uploads"))); 
 
 // Kết nối MongoDB
 mongoose
