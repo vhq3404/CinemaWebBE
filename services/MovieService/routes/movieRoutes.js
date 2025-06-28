@@ -47,7 +47,7 @@ router.get("/:id", async (req, res) => {
 // Thêm phim mới
 router.post("/", upload.single("poster"), async (req, res) => {
   try {
-    const movieData = JSON.parse(req.body.data); // phần còn lại là JSON
+    const movieData = JSON.parse(req.body.data); 
     const posterUrl = req.file ? `uploads/${req.file.filename}` : null;
     movieData.poster = posterUrl;
 

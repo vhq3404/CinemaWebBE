@@ -139,6 +139,8 @@ router.post("/generate-showtimes", async (req, res) => {
     showtimesPerDay = [],
     priceRegular,
     priceVIP,
+    priceRegularWeekend,
+    priceVIPWeekend,
     showtimeType,
   } = req.body;
 
@@ -199,6 +201,17 @@ router.post("/generate-showtimes", async (req, res) => {
         const rawEnd = new Date(startTime.getTime() + durationMs);
         const endTime = roundUpToQuarterHour(rawEnd);
 
+        // Lấy thứ trong tuần theo giờ VN (0: Chủ nhật, 6: Thứ 7)
+        const vnDay = new Date(
+          startTime.toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" })
+        ).getDay();
+        const isWeekend = vnDay === 0 || vnDay === 6;
+
+        const finalPriceRegular =
+          isWeekend && priceRegularWeekend ? priceRegularWeekend : priceRegular;
+        const finalPriceVIP =
+          isWeekend && priceVIPWeekend ? priceVIPWeekend : priceVIP;
+
         // Kiểm tra duplicate
         const duplicate = await Showtime.findOne({
           "movie.movieId": movieId,
@@ -252,8 +265,8 @@ router.post("/generate-showtimes", async (req, res) => {
               startTime,
               endTime,
               date: new Date(date),
-              priceRegular,
-              priceVIP,
+              priceRegular: finalPriceRegular,
+              priceVIP: finalPriceVIP,
               showtimeType,
             });
 
@@ -343,6 +356,39 @@ router.get("/:id", async (req, res) => {
   } catch (error) {
     console.error("Lỗi khi lấy suất chiếu:", error.message);
     res.status(500).json({ error: "Lỗi khi lấy thông tin suất chiếu" });
+  }
+});
+
+router.patch("/update-prices", async (req, res) => {
+  const { showtimeIds, priceRegular, priceVIP } = req.body;
+
+  if (!Array.isArray(showtimeIds) || showtimeIds.length === 0) {
+    return res.status(400).json({ error: "Danh sách suất chiếu không hợp lệ" });
+  }
+
+  if (priceRegular == null && priceVIP == null) {
+    return res
+      .status(400)
+      .json({ error: "Cần cung cấp ít nhất một loại giá để cập nhật" });
+  }
+
+  try {
+    const updateFields = {};
+    if (priceRegular != null) updateFields.priceRegular = priceRegular;
+    if (priceVIP != null) updateFields.priceVIP = priceVIP;
+
+    const result = await Showtime.updateMany(
+      { _id: { $in: showtimeIds } },
+      { $set: updateFields }
+    );
+
+    res.status(200).json({
+      message: "Cập nhật giá thành công",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Lỗi khi cập nhật giá:", error);
+    res.status(500).json({ error: "Lỗi server khi cập nhật giá" });
   }
 });
 
