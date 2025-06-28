@@ -50,6 +50,6 @@ initSocket(server);
 
 // Lắng nghe server trên PORT
 const PORT = process.env.PORT || 5006;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`BookingService server running on port ${PORT}`);
 });

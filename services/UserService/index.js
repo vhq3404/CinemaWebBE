@@ -111,6 +111,7 @@ app.post("/api/login", async (req, res) => {
         birthdate: user.birthdate,
         role: user.role,
         points: user.points,
+        workplace: user.workplace || '',
       },
     });
   } catch (error) {
