@@ -218,6 +218,7 @@ router.post("/generate-showtimes", async (req, res) => {
           showtimeType,
           date,
           startTime,
+          "theater.theaterId": theaterId,
         });
 
         if (duplicate) {
