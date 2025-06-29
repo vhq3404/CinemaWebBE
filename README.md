@@ -1,7 +1,5 @@
 ## Available Scripts
 
-In the `services` directory, you can run:
-
 ### `npm start`
 
 Runs all microservices in development mode using `concurrently`.  
